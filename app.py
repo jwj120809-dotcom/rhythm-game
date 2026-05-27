@@ -11,6 +11,7 @@ str.subheader("스트림릿에서 즐기는 실시간 리듬 게임")
 str.markdown("""
 * **조작 방법**: `Q`, `W`, `E`, `R` 키를 타이밍에 맞춰 누르세요!
 * 노트가 하단의 **판정선(붉은색 선)**에 닿았을 때 정확히 누르면 득점합니다.
+* **잘못된 키를 누르거나, 타이밍이 맞지 않으면 점수가 감점(-30점)**되니 주의하세요!
 * 아래 게임 화면을 **한 번 클릭**하여 포커스를 준 후 플레이해주세요.
 """)
 
@@ -95,9 +96,16 @@ function getRandomColor(lane) {
 // 키보드 입력 이벤트
 window.addEventListener('keydown', (e) => {
     let key = e.key.toUpperCase();
-    if (lanes.includes(key) && !keyStates[key]) {
-        keyStates[key] = true;
-        checkJudgment(key);
+    
+    // 1. QWER 중 하나를 눌렀을 때
+    if (lanes.includes(key)) {
+        if (!keyStates[key]) {
+            keyStates[key] = true;
+            checkJudgment(key);
+        }
+    } else {
+        // 2. QWER 외의 엉뚱한 키를 눌렀을 때 (감점 처리 및 아무 레인에나 MISS 이펙트)
+        triggerWrongKey();
     }
 });
 
@@ -135,6 +143,28 @@ function checkJudgment(key) {
         }
     }
     
+    // 알맞은 키(QWER)를 눌렀으나 해당 레인에 맞출 노트가 없었던 경우 (허공에 삽질)
+    if (!hit) {
+        score = Math.max(0, score - 30); // 0점 미만으로 안 떨어지게 방지하려면 Math.max 사용 (음수 허용하려면 빼기만 설정)
+        combo = 0;
+        addJudgmentEffect(key, "MISS", "#FF3333");
+    }
+    
+    updateDOM();
+}
+
+// QWER 이외의 잘못된 키 처리
+function triggerWrongKey() {
+    score = Math.max(0, score - 30); // 30점 감점
+    combo = 0;
+    // 무작위 레인 위치에 MISS 표시를 띄워 잘못 눌렀음을 알림
+    const randomLane = lanes[Math.floor(Math.random() * lanes.length)];
+    addJudgmentEffect(randomLane, "WRONG KEY", "#FF3333");
+    updateDOM();
+}
+
+// 스코어 및 콤보 보드 갱신
+function updateDOM() {
     document.getElementById("score").innerText = score;
     document.getElementById("combo").innerText = combo > 0 ? combo + " COMBO" : "";
 }
@@ -166,66 +196,3 @@ function update() {
         if (keyStates[lane]) {
             ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
             ctx.fillRect(laneX[lane] - laneWidth/2, 0, laneWidth, canvas.height);
-        }
-        
-        // 레인 이름 표시 (Q, W, E, R)
-        ctx.fillStyle = "#A0A0A0";
-        ctx.font = "bold 22px Arial";
-        ctx.fillText(lane, laneX[lane] - 10, canvas.height - 20);
-    });
-
-    // 2. 판정선 그리기
-    ctx.strokeStyle = "#FF3333";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(0, judgmentLineY);
-    ctx.lineTo(canvas.width, judgmentLineY);
-    ctx.stroke();
-
-    // 3. 노트 업데이트 및 그리기
-    for (let i = notes.length - 1; i >= 0; i--) {
-        let note = notes[i];
-        note.y += noteSpeed;
-
-        // 노트 렌더링
-        ctx.fillStyle = note.color;
-        ctx.fillRect(laneX[note.lane] - 42, note.y - 10, 84, 20);
-
-        // 놓쳤을 때 (Miss 처리)
-        if (note.y > canvas.height) {
-            notes.splice(i, 1);
-            combo = 0; 
-            document.getElementById("combo").innerText = "";
-            addJudgmentEffect(note.lane, "MISS", "#FF3333");
-        }
-    }
-
-    // 4. 판정 텍스트 이펙트 렌더링
-    for (let i = judgmentTexts.length - 1; i >= 0; i--) {
-        let jt = judgmentTexts[i];
-        ctx.fillStyle = jt.color;
-        ctx.globalAlpha = jt.alpha;
-        ctx.font = "bold 20px Arial";
-        ctx.fillText(jt.text, jt.x - 35, jt.y);
-        
-        jt.y -= 1.2; 
-        jt.alpha -= 0.04; 
-        
-        if (jt.alpha <= 0) {
-            judgmentTexts.splice(i, 1);
-        }
-    }
-    ctx.globalAlpha = 1.0; 
-
-    requestAnimationFrame(update);
-}
-
-// 게임 시작
-update();
-</script>
-</body>
-</html>
-"""
-
-# 스트림릿 컴포넌트로 HTML 삽입
-components.html(game_html, height=600)
