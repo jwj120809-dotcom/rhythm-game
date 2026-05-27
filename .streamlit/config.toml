@@ -1,4 +1,242 @@
 [theme]
-base="light"
-primaryColor="#4F46E5"
+base="dark"
+primaryColor="#FF007F"
+backgroundColor="#0E1117"
+secondaryBackgroundColor="#161B22"
+textColor="#FFFFFF"
 font="sans serif"
+
+### 2. 업데이트된 게임 소스 코드 (`app.py`)
+
+사진 속 **'FNF Arrow Edition'**의 느낌을 그대로 살려, 핑크색 네온 테두리와 'Life' 시스템, 그리고 시작 화면을 포함한 **QWER 전용 코드**입니다.
+
+```python
+import streamlit as st
+import streamlit.components.v1 as components
+
+# 페이지 설정
+st.set_page_config(page_title="FNF Arrow Edition (HARDCORE)", layout="centered")
+
+# CSS로 배경색 강제 지정 (스트림릿 기본 배경 우회)
+st.markdown("""
+    <style>
+    .stApp { background-color: #0E1117; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 게임 코드 (HTML/JS)
+game_html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            background-color: #0E1117;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            margin-top: 20px;
+            padding: 10px;
+            border: 3px solid #FF007F;
+            border-radius: 20px;
+            box-shadow: 0 0 25px rgba(255, 0, 127, 0.6);
+        }
+        canvas {
+            background-color: #000;
+            border-radius: 10px;
+            display: block;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .title {
+            color: #FF007F;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 0, 127, 0.8);
+            margin: 5px 0;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            width: 400px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #00F3FF;
+        }
+        #start-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            cursor: pointer;
+            z-index: 10;
+        }
+        .btn-start {
+            background: none;
+            border: 2px solid #00F3FF;
+            color: #00F3FF;
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 50px;
+            text-transform: uppercase;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+            transition: 0.3s;
+        }
+        .btn-start:hover {
+            background: #00F3FF;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="title">FNF Arrow Edition (HARDCORE)</div>
+    <div style="font-size: 14px; color: #888;">QWER 키를 사용하여 비트를 맞추세요!</div>
+</div>
+
+<div class="stats">
+    <div>SCORE: <span id="score">0</span></div>
+    <div>LIFE: <span id="life" style="color: #FF007F;">♥♥♥</span></div>
+</div>
+
+<div id="game-container">
+    <div id="start-screen" onclick="startGame()">
+        <button class="btn-start">CLICK TO START GAME</button>
+    </div>
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const lanes = ['Q', 'W', 'E', 'R'];
+const laneX = { 'Q': 50, 'W': 150, 'E': 250, 'R': 350 };
+const judgmentLineY = 430;
+const noteSpeed = 6;
+let score = 0;
+let life = 3;
+let notes = [];
+let gameActive = false;
+let keyStates = { 'Q': false, 'W': false, 'E': false, 'R': false };
+
+function startGame() {
+    document.getElementById("start-screen").style.display = "none";
+    gameActive = true;
+    score = 0;
+    life = 3;
+    notes = [];
+    updateLifeDisplay();
+}
+
+function updateLifeDisplay() {
+    document.getElementById("life").innerText = "♥".repeat(life);
+    if (life <= 0) {
+        gameActive = false;
+        document.getElementById("start-screen").style.display = "block";
+        document.querySelector(".btn-start").innerText = "GAME OVER - RESTART?";
+    }
+}
+
+// 노트 생성
+setInterval(() => {
+    if (!gameActive) return;
+    const lane = lanes[Math.floor(Math.random() * lanes.length)];
+    notes.push({ lane, y: 0 });
+}, 500);
+
+window.addEventListener('keydown', (e) => {
+    if (!gameActive) return;
+    let key = e.key.toUpperCase();
+    if (lanes.includes(key) && !keyStates[key]) {
+        keyStates[key] = true;
+        checkHit(key);
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    let key = e.key.toUpperCase();
+    if (lanes.includes(key)) keyStates[key] = false;
+});
+
+function checkHit(key) {
+    let hit = false;
+    for (let i = 0; i < notes.length; i++) {
+        if (notes[i].lane === key && Math.abs(notes[i].y - judgmentLineY) < 40) {
+            score += 100;
+            notes.splice(i, 1);
+            hit = true;
+            break;
+        }
+    }
+    document.getElementById("score").innerText = score;
+}
+
+function update() {
+    if (!gameActive) {
+        requestAnimationFrame(update);
+        return;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 가이드 라인 및 키 효과
+    lanes.forEach(lane => {
+        ctx.strokeStyle = "#222";
+        ctx.strokeRect(laneX[lane]-50, 0, 100, canvas.height);
+        if(keyStates[lane]) {
+            ctx.fillStyle = "rgba(0, 243, 255, 0.2)";
+            ctx.fillRect(laneX[lane]-50, 0, 100, canvas.height);
+        }
+        ctx.fillStyle = "#444";
+        ctx.font = "20px Arial";
+        ctx.fillText(lane, laneX[lane]-10, canvas.height-10);
+    });
+
+    // 판정선
+    ctx.strokeStyle = "#FF007F";
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, judgmentLineY); ctx.lineTo(400, judgmentLineY); ctx.stroke();
+
+    // 노트 이동 및 그리기
+    for (let i = notes.length - 1; i >= 0; i--) {
+        notes[i].y += noteSpeed;
+        
+        // 노트 디자인 (네온 사각형)
+        ctx.fillStyle = "#00F3FF";
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "#00F3FF";
+        ctx.fillRect(laneX[notes[i].lane]-40, notes[i].y-10, 80, 20);
+        ctx.shadowBlur = 0;
+
+        if (notes[i].y > canvas.height) {
+            notes.splice(i, 1);
+            life--;
+            updateLifeDisplay();
+        }
+    }
+
+    requestAnimationFrame(update);
+}
+
+update();
+</script>
+</body>
+</html>
+"""
+
+components.html(game_html, height=650)
+
+요청하신 네온 다크 테마 리듬 게임 프로젝트 업데이트가 완료되었습니다! 추가로 조정하고 싶은 부분이 있다면 말씀해 주세요.
